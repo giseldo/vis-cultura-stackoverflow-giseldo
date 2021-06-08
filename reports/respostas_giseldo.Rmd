@@ -1,0 +1,352 @@
+---
+title: "Respostas Giseldo"
+output:
+    html_document:
+    df_print: paged
+theme: sandstone
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(boot)
+library(broom)
+library(tidyverse)
+library(hrbrthemes)
+library(tidyverse)
+library(here)
+library(viridis)
+source(here::here("code/import_data.R"))
+theme_set(theme_bw())
+
+knitr::opts_chunk$set(tidy = FALSE,
+                      fig.width = 6,
+                      fig.height = 5)
+```
+
+```{r read}
+dados = read_csv(
+    here::here("data/participation-per-country.csv"),
+    col_types = cols(
+        .default = col_double(),
+        site = col_character(),
+        country = col_character(),
+        geo = col_character(),
+        four_regions = col_character(),
+        eight_regions = col_character(),
+        six_regions = col_character(),
+        `World bank income group 2017` = col_character()
+    )
+)  %>% 
+    filter(usuarios > 200) 
+
+glimpse(dados)
+```
+
+*Daqui para baixo são as respostas dos Exercícios*
+
+*1. Descreva a relação entre EPI (fluência de inglês na população do país) e a taxa de pessoas daquele país que responderam alguma pergunta no StackOverflow.*
+
+```{r}
+dados_stack = dados %>% 
+    filter(site == "StackOverflow") %>%
+    filter(!is.na(EPI))  %>%
+    filter(!is.na(responderam_prop))
+    
+dados_stack %>% 
+    ggplot(aes(x= EPI, y = responderam_prop)) + 
+    geom_point() +
+    geom_smooth(method="lm")
+```
+
+```{r}
+cor(dados_stack$EPI, dados_stack$responderam_prop)
+```
+*Existe uma correlação média de 0,63 entre EPI e respoderam para o Stack nessa amostra.*
+
+```{r}
+regressao_stack = lm(dados_stack$responderam_prop~dados_stack$EPI)
+regressao_stack
+summary(regressao_stack)
+```
+
+*responderam = 0,10 + 0,007 x epi*
+
+*A cada uma unidade que cresce a fluencia em ingles do país as respostas crescem em 0,7% em média com 1% se significância para o stack overflow*
+
+*2. Descreva a relação entre as mesmas duas variáveis no SuperUser e compare o comportamento das pessoas de diferentes países nos dois sites comparando os resultados dos dois modelos.*
+
+**2.1. Descreva a relação entre as mesmas duas variáveis no SuperUser**
+
+```{r}
+dados_super_user = dados %>% filter(site == "SuperUser")
+
+dados_super_user = dados_super_user %>% filter(!is.na(EPI)) %>% filter(!is.na(responderam_prop))
+
+dados_super_user %>% 
+    ggplot(aes(x= EPI, y = responderam_prop)) + 
+    geom_point() +
+    geom_smooth(method = "lm")
+```
+
+```{r}
+cor(dados_super_user$EPI, dados_super_user$responderam_prop)
+```
+**Existe uma correlação media de 0.64 entre o EPI e as pessoas que responderam para o site Super User**
+
+```{r}
+regressao_super_user = lm(dados_super_user$responderam_prop~dados_super_user$EPI)
+summary(regressao_super_user)
+```
+
+*responderam_super =  0,023 + 0,004 x EPI*
+
+**Para cara unidade que cresce a fluencia em ingles do país no site super user cresce em media 0,4% da quantidade de pessoas que responderam para o site Super User**
+
+**2.2 Compare o comportamento das pessoas de diferentes países nos dois sites comparando os resultados dos dois modelos.**
+
+*Para o StackOverflow o impacto foi de 0,7% com desvio padrão de  e para o SuperUser o impacto foi de 0,4%,  ambos com 1% de significância*
+
+
+**Teste de média da média do EPI**
+
+```{r}
+t.test(dados_super_user$EPI, dados_stack$EPI)
+```
+*Em média não existem evidências de diferença na média do EPI entre os usuários do stackOverflow e do SuperUser, conforme o Teste T*
+
+```{r}
+s <- function(d, i) {
+    sumarizado = d %>% 
+        slice(i) %>% 
+        summarise(media_epi = mean(EPI))
+    
+    sumarizado %>% 
+      pull(media_epi)
+}
+
+s(dados_super_user, 1:(nrow(dados_super_user))) # theta_chapeu
+```
+
+```{r}
+booted <- boot(data = dados_super_user, 
+               statistic = s, 
+               R = 2000)
+
+ci_super_user = tidy(booted, 
+              conf.level = .95,
+              conf.method = "basic",
+              conf.int = TRUE)
+
+ci_super_user
+```
+
+```{r}
+s <- function(d, i) {
+    sumarizado = d %>% 
+        slice(i) %>% 
+        summarise(media_epi = mean(EPI))
+    
+    sumarizado %>% 
+      pull(media_epi)
+}
+
+s(dados_stack, 1:(nrow(dados_stack))) # theta_chapeu
+```
+```{r}
+booted <- boot(data = dados_stack, 
+               statistic = s, 
+               R = 2000)
+
+ci_stack = tidy(booted, 
+              conf.level = .95,
+              conf.method = "basic",
+              conf.int = TRUE)
+
+ci_stack
+```
+
+```{r}
+plot_ics = function(d) {
+    d %>%
+        ggplot(aes(
+            ymin = low,
+            y = mid,
+            ymax = high,
+            x = metodo
+        )) +
+        geom_linerange() +
+        geom_point(color = "coral", size = 3) +
+        scale_y_continuous(limits = c(50, 60)) +
+        labs(x = "", y = "Média do EPI") +
+        coord_flip()
+}
+```
+
+```{r}
+tribble(
+    ~metodo, ~low, ~mid, ~high, 
+    "StackOverflow", 52.63, 54.56, 56.54, 
+    "SuperUser", 53.54, 55.78, 57.89) %>% 
+    plot_ics()
+```
+
+*Analisando o intervalo de confiança em média não existe diferença entre o EPI do site do Super e do Stack.*
+
+*Analisando o IC da correlação*
+
+```{r}
+theta_math <- function(d, i) {
+    r = d %>% 
+        slice(i) %>% 
+        summarise(r = cor(responderam_prop, EPI, method = "pearson")) %>%
+        pull(r)
+    r
+}
+
+ci_stack = boot(data = dados_stack,
+           statistic = theta_math,
+           R = 2000) %>%
+           tidy(conf.level = .95,
+                 conf.method = "bca",
+                 conf.int = TRUE)
+ci_stack
+```
+```{r}
+ci_stack %>% 
+  ggplot(aes(
+            ymin = conf.low,
+            y = statistic,
+            ymax = conf.high,
+            x = "Corr. Pearson"
+        )) +
+        geom_linerange() +
+        geom_point(color = "coral", size = 2) +
+        scale_y_continuous(limits = c(0, 1)) +
+        labs(x = "", y = "Correlação Stack EPI Responderam") +
+        coord_flip()
+```
+
+
+```{r}
+theta_math <- function(d, i) {
+    r = d %>% 
+        slice(i) %>% 
+        summarise(r = cor(responderam_prop, EPI, method = "pearson")) %>%
+        pull(r)
+    r
+}
+
+ci_super = boot(data = dados_super_user,
+           statistic = theta_math,
+           R = 2000) %>%
+           tidy(conf.level = .95,
+                 conf.method = "bca",
+                 conf.int = TRUE)
+ci_super
+```
+
+```{r}
+ci_super %>% 
+  ggplot(aes(
+            ymin = conf.low,
+            y = statistic,
+            ymax = conf.high,
+            x = "Corr. Pearson"
+        )) +
+        geom_linerange() +
+        geom_point(color = "coral", size = 2) +
+        scale_y_continuous(limits = c(0, 1)) +
+        labs(x = "", y = "Correlação Stack EPI Responderam") +
+        coord_flip()
+```
+
+
+```{r}
+plot_ics = function(d) {
+    d %>%
+        ggplot(aes(
+            ymin = low,
+            y = mid,
+            ymax = high,
+            x = metodo
+        )) +
+        geom_linerange() +
+        geom_point(color = "coral", size = 3) +
+        scale_y_continuous(limits = c(0, 1)) +
+        labs(x = "", y = "IC da Correlação") +
+        coord_flip()
+}
+
+tribble(
+    ~metodo, ~low, ~mid, ~high, 
+    "Super Cor EPI Respon", 0.46, 0.63, 0.74, 
+    "Stack Cor EPI Respon", 0.49, 0.64, 0.76) %>% 
+    plot_ics()
+```
+
+```{r}
+comparacao1 = dados %>%
+  filter(site %in% c("StackOverflow", "SuperUser")) %>%
+  filter(!is.na(EPI))  %>%
+  filter(!is.na(responderam_prop))
+
+theta1 <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(site) %>% 
+        summarise(correlacao = cor(responderam_prop, EPI, method = "pearson"))
+    b = agrupado %>% filter(site == "StackOverflow") %>% pull(correlacao)
+    l = agrupado %>% filter(site == "SuperUser") %>% pull(correlacao)
+    l - b
+}
+
+theta1(comparacao1, i = 1:NROW(comparacao1))
+```
+
+*Não há diferença entre as correlações deo EPI com o Super e o stack*
+
+*3. Descreva a relação entre GNI (produto interno bruto per cápita) dos países e a taxa de pessoas daquele país que responderam alguma pergunta no StackOverflow.*
+
+```{r}
+dados_stack = dados %>% 
+    filter(site == "StackOverflow") %>%
+    filter(!is.na(GNI))  %>%
+    filter(!is.na(responderam_prop))
+
+dados_stack %>% 
+    ggplot(aes(x=GNI, y=responderam_prop)) + 
+    geom_point() + 
+    geom_smooth()
+```
+
+
+```{r}
+cor(dados_stack$GNI, dados_stack$responderam_prop)
+```
+
+**Existe uma correlação média de 0,58 entre GNI e os que responderam**
+
+```{r}
+dados_stack = dados_stack %>% 
+    select(GNI, responderam_prop) %>%
+    mutate(log10_GNI =  log10(GNI))
+
+dados_stack %>% 
+    ggplot(aes(x=log10_GNI, y=responderam_prop)) + 
+    geom_point() +
+    geom_smooth(method="lm")
+```
+
+```{r}
+cor(dados_stack$log10_GNI, dados_stack$responderam_prop)
+```
+
+**Existe uma correlação média de 0,68 do log de GNI com a quantidade de pessoas que responderam**
+
+```{r}
+regressao_GNI_stack = lm(dados_stack$responderam_prop~dados_stack$log10_GNI)
+summary(regressao_GNI_stack)
+```
+
+*responderam = 0,04 + 0,11 x log10_GNI*
+
+*Para cada uma unidade do log na base 10 do produto interno bruto que é aumentado em 11% a participcão dos respondentes aumentam em média.*

@@ -1,0 +1,241 @@
+---
+title: "REPLACE ME"
+output:
+    html_document:
+    df_print: paged
+theme: sandstone
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(boot)
+library(broom)
+library(tidyverse)
+library(hrbrthemes)
+library(tidyverse)
+library(here)
+library(viridis)
+source(here::here("code/import_data.R"))
+theme_set(theme_bw())
+
+knitr::opts_chunk$set(tidy = FALSE,
+                      fig.width = 6,
+                      fig.height = 5)
+
+
+options(scipen=999)
+```
+
+```{r read}
+dados = read_csv(
+    here::here("data/participation-per-country.csv"),
+    col_types = cols(
+        .default = col_double(),
+        site = col_character(),
+        country = col_character(),
+        geo = col_character(),
+        four_regions = col_character(),
+        eight_regions = col_character(),
+        six_regions = col_character(),
+        `World bank income group 2017` = col_character()
+    )
+) %>% 
+    filter(usuarios > 200)
+glimpse(dados)
+```
+
+1. Descreva a relação entre EPI (fluência de inglês na população do país) e a taxa de pessoas daquele país que responderam alguma pergunta no StackOverflow. 
+
+
+```{r}
+dados_stack = dados %>%
+        filter(site == "StackOverflow") %>%
+        filter(!is.na(responderam_prop)) %>%
+        filter(!is.na(EPI))
+        
+
+dados_stack %>% 
+    ggplot(aes(x = EPI, y = responderam_prop)) + 
+    geom_point() +
+    geom_smooth(method = "lm")
+```
+
+
+```{r}
+cor(dados_stack$responderam_prop, dados_stack$EPI)
+
+modelo1 = lm (dados_stack$responderam_prop ~ dados_stack$EPI)
+
+summary(modelo1)
+```
+
+Existe uma correlação entre as variáveis EPI (fluência de inglês na população do país) e a taxa de pessoas daquele país que responderam (responderam_prop) de média para alta (0.6345309).
+
+Equação da regressão:
+
+responderam_prop = 0.108082 + 0.007335 * EPI
+
+A cada uma unidade de EPI, aumenta, em média, 0.7% das pessoas que responderam, com 0,1% de significancia.
+
+
+---
+
+
+2. Descreva a relação entre as mesmas duas variáveis no SuperUser e compare o comportamento das pessoas de diferentes países nos dois sites comparando os resultados dos dois modelos. 
+
+```{r}
+dados_superuser = dados %>%
+        filter(site == "SuperUser") %>%
+        filter(!is.na(responderam_prop)) %>%
+        filter(!is.na(EPI))
+
+dados_superuser %>% 
+    ggplot(aes(x = EPI, y = responderam_prop)) + 
+    geom_point()+
+    geom_smooth(method = "lm")
+```
+```{r}
+cor(dados_superuser$responderam_prop, dados_superuser$EPI)
+
+modelo2 = lm(dados_superuser$responderam_prop ~ dados_superuser$EPI)
+
+summary(modelo2)
+```
+
+Para o site SuperUser, também existe uma correlação entre as variáveis EPI (fluência de inglês na população do país) e a taxa de pessoas daquele país que responderam (responderam_prop) de média para alta (0.6482049).
+
+Equação da regressão:
+
+responderam_prop = -0.0236147 + 0.0047522 * EPI
+
+A cada uma unidade de EPI, aumenta, em média, 0.47% das pessoas que responderam, com 0,1% de significância.
+
+```{r}
+dados %>% 
+    ggplot(aes(x = EPI, y = responderam_prop, color = site)) + 
+    geom_point() +
+    geom_smooth(method = "lm")
+
+```
+
+
+Coeficientes
+StackOverflow: 0.007335
+SuperUser:     0.0047522
+
+P Valor
+StackOverflow: 0.000000978
+SuperUser:     0.0000191
+
+Multiple R-squared
+StackOverflow:  0.4026
+SuperUser:      0.4202
+
+
+De uma maneira simplificada, o efeito da variável EPI na variável responderam_prop é maior em StackOverflow do que o site SuperUser.
+
+
+O RQuadrado do modelo SuperUser é maior do que o StackOverflow.
+
+
+```{r}
+t.test(dados_stack$EPI,dados_superuser$EPI)
+```
+
+Por intervalo de confiança:
+
+```{r}
+cor(dados_stack$responderam_prop, dados_stack$EPI)
+
+
+cor(dados_superuser$responderam_prop, dados_superuser$EPI)
+
+```
+
+```{r}
+theta_stack <- function(d, i) {
+    r = d %>% 
+        slice(i) %>% 
+        summarise(r = cor(responderam_prop, EPI, method = "pearson")) %>%
+        pull(r)
+    r
+}
+```
+
+
+```{r}
+ci_stack = boot(data = dados_stack,
+           statistic = theta_stack,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+```
+
+
+```{r}
+ci_stack
+
+```
+
+
+         
+         
+
+
+
+
+
+
+
+
+3. Descreva a relação entre GNI (produto interno bruto per cápita) dos países e a taxa de pessoas daquele país que responderam alguma pergunta no StackOverflow. 
+
+
+```{r}
+dados_stack = dados %>%
+        filter(site == "StackOverflow") %>%
+        filter(!is.na(responderam_prop)) %>%
+        filter(!is.na(GNI))
+
+dados_stack %>% 
+    ggplot(aes(x = GNI, y = responderam_prop)) + 
+    geom_point() +
+    geom_smooth(method = "gam")
+#    geom_smooth(method = "loess")
+
+```
+
+
+
+```{r}
+cor(dados_stack$responderam_prop, dados_stack$GNI)
+
+modelo3 = lm(dados_stack$responderam_prop ~ dados_stack$GNI)
+
+summary(modelo3)
+```
+
+
+A relação não é linear, e uma melhor visualização é alterando a escala para logarítmica do eixo X (GNI).
+
+```{r}
+dados_stack %>% 
+    ggplot(aes(x = log10(GNI), y = responderam_prop)) + 
+    geom_point() +
+    geom_smooth(method = "lm")
+
+```
+
+```{r}
+cor(dados_stack$responderam_prop, log10(dados_stack$GNI))
+
+modelo4 = lm(dados_stack$responderam_prop ~ log10(dados_stack$GNI))
+
+summary(modelo4)
+
+```
+
+Refuta-se a hipótese nula de não existir relação (efeito) entre GNI e as respostas.
+
+A cada uma unidade que cresce do logarítmo de GNI aumenta 11,4% nas respostas.
+

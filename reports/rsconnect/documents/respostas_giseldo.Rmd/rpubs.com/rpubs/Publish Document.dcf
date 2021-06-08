@@ -1,0 +1,11 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/778223/85828ba3a1184be39f620b2566491f0a
+bundleId: https://api.rpubs.com/api/v1/document/778223/85828ba3a1184be39f620b2566491f0a
+url: http://rpubs.com/giseldo/778223
+when: 1623110709.7106
+lastSyncTime: 1623110709.7106

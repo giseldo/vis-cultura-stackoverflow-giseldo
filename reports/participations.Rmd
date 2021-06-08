@@ -10,7 +10,7 @@ theme: sandstone
 library(tidyverse)
 library(here)
 library(viridis)
-source(here::here("code/lib.R"))
+source(here::here("code/import_data.R"))
 theme_set(theme_bw())
 
 knitr::opts_chunk$set(tidy = FALSE,
@@ -31,8 +31,9 @@ dados = read_csv(
         six_regions = col_character(),
         `World bank income group 2017` = col_character()
     )
-) %>% 
-    filter(usuarios > 200)
+)  %>% 
+    filter(usuarios > 200) 
+
 glimpse(dados)
 ```
 
@@ -137,4 +138,5 @@ so %>%
     geom_point(size = 3) + 
     coord_flip()
 ```
+
 
